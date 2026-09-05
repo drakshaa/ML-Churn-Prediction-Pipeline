@@ -1,10 +1,15 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import pandas as pd
 import joblib
 from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
 
 
-# Create FastAPI app
+# ==========================================
+# CREATE FASTAPI APP
+# ==========================================
+
 app = FastAPI(
     title="Customer Churn Prediction API",
     description="API for predicting whether a customer will churn",
@@ -12,23 +17,43 @@ app = FastAPI(
 )
 
 
+# ==========================================
+# CORS SETTINGS
+# ==========================================
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ==========================================
 # FIND PROJECT FOLDERS
-
+# ==========================================
 
 # api/main.py -> project root
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Path to saved model
+# Model path
 MODEL_PATH = BASE_DIR / "models" / "final_model.pkl"
 
+# Scaler path
+SCALER_PATH = BASE_DIR / "models" / "scaler.pkl"
 
 
+# ==========================================
 # LOAD MODEL
-
+# ==========================================
 
 try:
     model = joblib.load(MODEL_PATH)
+
     print("Model loaded successfully!")
     print("Model path:", MODEL_PATH)
 
@@ -38,82 +63,298 @@ except FileNotFoundError:
     raise
 
 
+# ==========================================
+# LOAD SCALER
+# ==========================================
 
+try:
+    scaler = joblib.load(SCALER_PATH)
+
+    print("Scaler loaded successfully!")
+    print("Scaler path:", SCALER_PATH)
+
+except FileNotFoundError:
+    print("ERROR: Scaler file not found!")
+    print("Expected path:", SCALER_PATH)
+    raise
+
+
+# ==========================================
+# CHECK MODEL FEATURES
+# ==========================================
+
+if hasattr(model, "n_features_in_"):
+    print("\nNumber of features expected by model:")
+    print(model.n_features_in_)
+
+if hasattr(model, "feature_names_in_"):
+    print("\nFeature names expected by model:")
+    print(model.feature_names_in_)
+
+
+# ==========================================
 # DEFINE INPUT DATA
-
+# ==========================================
 
 class CustomerData(BaseModel):
+
     SeniorCitizen: int
-    Partner: int
-    Dependents: int
     tenure: int
-    PhoneService: int
-    MultipleLines: int
-    InternetService: int
-    OnlineSecurity: int
-    OnlineBackup: int
-    DeviceProtection: int
-    TechSupport: int
-    StreamingTV: int
-    StreamingMovies: int
-    Contract: int
-    PaperlessBilling: int
-    PaymentMethod: int
     MonthlyCharges: float
     TotalCharges: float
 
+    gender: str
+    Partner: str
+    Dependents: str
+    PhoneService: str
+    MultipleLines: str
+    InternetService: str
+    OnlineSecurity: str
+    OnlineBackup: str
+    DeviceProtection: str
+    TechSupport: str
+    StreamingTV: str
+    StreamingMovies: str
+    Contract: str
+    PaperlessBilling: str
+    PaymentMethod: str
 
 
+# ==========================================
 # HOME ROUTE
-
+# ==========================================
 
 @app.get("/")
 def home():
     return {
-        "message": "Churn Prediction API is running!"
+        "message": "Customer Churn Prediction API is running!"
     }
 
 
+# ==========================================
+# SHOW MODEL FEATURES
+# ==========================================
 
+@app.get("/features")
+def get_features():
+
+    if hasattr(model, "feature_names_in_"):
+        return {
+            "number_of_features": len(model.feature_names_in_),
+            "features": model.feature_names_in_.tolist()
+        }
+
+    return {
+        "message": "Feature names are not available for this model"
+    }
+
+
+# ==========================================
 # PREDICTION ROUTE
-
+# ==========================================
 
 @app.post("/predict")
 def predict(customer: CustomerData):
 
-    # Convert input into the format expected by the model
-    input_data = [[
-        customer.SeniorCitizen,
-        customer.Partner,
-        customer.Dependents,
-        customer.tenure,
-        customer.PhoneService,
-        customer.MultipleLines,
-        customer.InternetService,
-        customer.OnlineSecurity,
-        customer.OnlineBackup,
-        customer.DeviceProtection,
-        customer.TechSupport,
-        customer.StreamingTV,
-        customer.StreamingMovies,
-        customer.Contract,
-        customer.PaperlessBilling,
-        customer.PaymentMethod,
-        customer.MonthlyCharges,
-        customer.TotalCharges
-    ]]
 
-    # Make prediction
+    # --------------------------------------
+    # STEP 1: CREATE RAW INPUT DATA
+    # --------------------------------------
+
+    input_data = pd.DataFrame([{
+
+        # Numerical features
+        "SeniorCitizen": customer.SeniorCitizen,
+        "tenure": customer.tenure,
+        "MonthlyCharges": customer.MonthlyCharges,
+        "TotalCharges": customer.TotalCharges,
+
+
+        # Gender
+        "gender_Male":
+            1 if customer.gender == "Male" else 0,
+
+
+        # Partner
+        "Partner_Yes":
+            1 if customer.Partner == "Yes" else 0,
+
+
+        # Dependents
+        "Dependents_Yes":
+            1 if customer.Dependents == "Yes" else 0,
+
+
+        # Phone Service
+        "PhoneService_Yes":
+            1 if customer.PhoneService == "Yes" else 0,
+
+
+        # Multiple Lines
+        "MultipleLines_No phone service":
+            1 if customer.MultipleLines == "No phone service" else 0,
+
+        "MultipleLines_Yes":
+            1 if customer.MultipleLines == "Yes" else 0,
+
+
+        # Internet Service
+        "InternetService_Fiber optic":
+            1 if customer.InternetService == "Fiber optic" else 0,
+
+        "InternetService_No":
+            1 if customer.InternetService == "No" else 0,
+
+
+        # Online Security
+        "OnlineSecurity_No internet service":
+            1 if customer.OnlineSecurity == "No internet service" else 0,
+
+        "OnlineSecurity_Yes":
+            1 if customer.OnlineSecurity == "Yes" else 0,
+
+
+        # Online Backup
+        "OnlineBackup_No internet service":
+            1 if customer.OnlineBackup == "No internet service" else 0,
+
+        "OnlineBackup_Yes":
+            1 if customer.OnlineBackup == "Yes" else 0,
+
+
+        # Device Protection
+        "DeviceProtection_No internet service":
+            1 if customer.DeviceProtection == "No internet service" else 0,
+
+        "DeviceProtection_Yes":
+            1 if customer.DeviceProtection == "Yes" else 0,
+
+
+        # Tech Support
+        "TechSupport_No internet service":
+            1 if customer.TechSupport == "No internet service" else 0,
+
+        "TechSupport_Yes":
+            1 if customer.TechSupport == "Yes" else 0,
+
+
+        # Streaming TV
+        "StreamingTV_No internet service":
+            1 if customer.StreamingTV == "No internet service" else 0,
+
+        "StreamingTV_Yes":
+            1 if customer.StreamingTV == "Yes" else 0,
+
+
+        # Streaming Movies
+        "StreamingMovies_No internet service":
+            1 if customer.StreamingMovies == "No internet service" else 0,
+
+        "StreamingMovies_Yes":
+            1 if customer.StreamingMovies == "Yes" else 0,
+
+
+        # Contract
+        "Contract_One year":
+            1 if customer.Contract == "One year" else 0,
+
+        "Contract_Two year":
+            1 if customer.Contract == "Two year" else 0,
+
+
+        # Paperless Billing
+        "PaperlessBilling_Yes":
+            1 if customer.PaperlessBilling == "Yes" else 0,
+
+
+        # Payment Method
+        "PaymentMethod_Credit card (automatic)":
+            1 if customer.PaymentMethod == "Credit card (automatic)" else 0,
+
+        "PaymentMethod_Electronic check":
+            1 if customer.PaymentMethod == "Electronic check" else 0,
+
+        "PaymentMethod_Mailed check":
+            1 if customer.PaymentMethod == "Mailed check" else 0
+
+    }])
+
+
+    # --------------------------------------
+    # STEP 2: SCALE NUMERICAL FEATURES
+    # --------------------------------------
+
+    numerical_columns = [
+        "SeniorCitizen",
+        "tenure",
+        "MonthlyCharges",
+        "TotalCharges"
+    ]
+
+    input_data[numerical_columns] = scaler.transform(
+        input_data[numerical_columns]
+    )
+
+
+    # --------------------------------------
+    # STEP 3: PUT COLUMNS IN EXACT
+    # ORDER EXPECTED BY THE MODEL
+    # --------------------------------------
+
+    if hasattr(model, "feature_names_in_"):
+
+        input_data = input_data[
+            model.feature_names_in_
+        ]
+
+
+    # --------------------------------------
+    # STEP 4: MAKE PREDICTION
+    # --------------------------------------
+
     prediction = model.predict(input_data)[0]
 
-    # Get probability if supported
+
+    # --------------------------------------
+    # STEP 5: GET CHURN PROBABILITY
+    # --------------------------------------
+
     probability = None
 
     if hasattr(model, "predict_proba"):
-        probability = float(model.predict_proba(input_data)[0][1])
 
-    # Convert prediction to readable result
-    churn_prediction = "Yes" if prediction == 1 else "No"
+        probabilities = model.predict_proba(input_data)[0]
+
+        if hasattr(model, "classes_"):
+
+            classes = list(model.classes_)
+
+            if 1 in classes:
+
+                churn_index = classes.index(1)
+
+                probability = float(
+                    probabilities[churn_index]
+                )
+
+        else:
+            probability = float(probabilities[1])
+
+
+    # --------------------------------------
+    # STEP 6: CONVERT TO READABLE RESULT
+    # --------------------------------------
+
+    churn_prediction = (
+        "Yes"
+        if prediction == 1
+        else "No"
+    )
+
+
+    # --------------------------------------
+    # RETURN RESULT
+    # --------------------------------------
 
     return {
         "prediction": int(prediction),
