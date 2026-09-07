@@ -25,7 +25,7 @@ app.add_middleware(
         "http://localhost:5500"
         "https://churn-frontend-production.up.railway.app"
     ],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
