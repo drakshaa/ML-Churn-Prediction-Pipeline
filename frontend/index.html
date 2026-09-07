@@ -364,9 +364,11 @@
                     <option value="Month-to-month">
                         Month-to-month
                     </option>
+
                     <option value="One year">
                         One year
                     </option>
+
                     <option value="Two year">
                         Two year
                     </option>
@@ -392,6 +394,7 @@
                 <label>Payment Method</label>
 
                 <select id="PaymentMethod">
+
                     <option value="Electronic check">
                         Electronic check
                     </option>
@@ -407,6 +410,7 @@
                     <option value="Credit card (automatic)">
                         Credit card (automatic)
                     </option>
+
                 </select>
             </div>
 
@@ -514,10 +518,10 @@
 
         try {
 
-            // Send data to FastAPI
+            // Send data to deployed FastAPI on Railway
 
             const response = await fetch(
-                "http://127.0.0.1:8000/predict",
+                "https://ml-churn-prediction-pipeline-production.up.railway.app/predict",
                 {
                     method: "POST",
 
@@ -554,8 +558,7 @@
             const probability = Number(data.churn_probability);
 
 
-            // IMPORTANT:
-            // probability from API is already between 0 and 1
+            // Probability from API is already between 0 and 1
             // Example: 0.1412 means 14.12%
 
             const percentage = probability * 100;
@@ -618,7 +621,7 @@
 
                 <br><br>
 
-                Make sure FastAPI is running on port 8000.
+                Please check that the deployed API is online and try again.
             `;
 
         }
